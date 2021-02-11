@@ -16,6 +16,7 @@ blur_value = 41
 #bg_threshold = 16
 bg_threshold = 70
 learning_rate = 0
+area_limit = 10000
 
 bg_captured = False
 trigger_switch = False
@@ -82,12 +83,18 @@ while camera.isOpened():
                 if area > maxArea:
                     maxArea = area
                     ci = i
-
             res = contours[ci]
+            if (cv2.contourArea(res) < area_limit):
+                continue
+            print(cv2.contourArea(res))
             hull = cv2.convexHull(res)
             drawing = np.zeros(img.shape, np.uint8)
             cv2.drawContours(drawing, [res], 0, (0, 255, 0), 2)
             cv2.drawContours(drawing, [hull], 0, (0, 0, 255), 3)
+            # centre of hand
+            moments = cv2.moments(res)
+            center = (int(moments['m10'] / moments['m00']), int(moments['m01'] / moments['m00']))
+            cv2.circle(drawing, center, 5, (255, 0, 0), 2)
 
         cv2.imshow('contours', drawing)
 
@@ -98,6 +105,7 @@ while camera.isOpened():
     # capture the background
     elif k == ord('b'):
         bgModel = cv2.createBackgroundSubtractorMOG2(0, bg_threshold)
+        #bgModel = cv2.createBackgroundSubtractorKNN(0, 400)
         bg_captured = True
         print('Background captured')
     # reset the background
