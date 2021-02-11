@@ -4,7 +4,7 @@ import numpy as np
 import time
 
 # save image
-img_counter = 1
+img_counter = 251
 
 # parameters
 cap_region_x_begin = 0.5
@@ -71,7 +71,7 @@ while camera.isOpened():
 
         # contours
         thresh1 = copy.deepcopy(thresh)
-        _, contours, hierarchy = cv2.findContours(thresh1, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        contours, hierarchy = cv2.findContours(thresh1, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
         length = len(contours)
         maxArea = -1
         if length > 0:
@@ -110,20 +110,17 @@ while camera.isOpened():
     elif k == 32:
         # spacebar pressed
         cv2.imshow('original', frame)
-
         #save image with pressing the spacebar
         if save_images:
-            img_name=f"./dataset/contours/{gesture}_{img_counter}.jpg".format(img_counter)
+            img_name=f"./dataset/contours/{gesture}_{img_counter}.jpg"
             cv2.imwrite(img_name, drawing)
             print("{} written".format(img_name))
 
-            img_name2 = f"./dataset/thresholds/{gesture}_{img_counter}.jpg".format(
-                img_counter)
+            img_name2 = f"./dataset/thresholds/{gesture}_{img_counter}.jpg"
             cv2.imwrite(img_name2, thresh)
             print("{} written".format(img_name2))
 
-            img_name3 = f"./dataset/masks/{gesture}_{img_counter}.jpg".format(
-                img_counter)
+            img_name3 = f"./dataset/masks/{gesture}_{img_counter}.jpg"
             cv2.imwrite(img_name3, img)
             print("{} written".format(img_name3))
 
