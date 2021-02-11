@@ -1,6 +1,8 @@
 import cv2
 import numpy as np
 import time
+import photoshop.api as ps
+import pyautogui as pag
 
 # global params #
 # image saving settings
@@ -26,10 +28,43 @@ bg_learning_rate = 0
 # sets minimum size of contour to be considered valid
 area_limit = 2000
 
+# screen size
+screen_size = pag.size()
+
 # debug mode - show all windows
-debug_mode = False
+debug_mode = True
 
 
+# functions for picture capture
+def capture_on_click(event, x, y, flags, params):
+    drawing, thresh, img = params
+    if event == cv2.EVENT_LBUTTONDOWN and save_images and drawing and thresh and img:
+        capture_frame(drawing, thresh, img)
+
+
+def capture_on_keystroke(drawing, thresh, img):
+    if save_images and drawing and thresh and img:
+        capture_frame(drawing, thresh, img)
+
+
+def capture_frame(drawing, thresh, img):
+    global img_counter
+    img_name=f"./dataset/contours/{gesture_name}_{img_counter}.jpg"
+    cv2.imwrite(img_name, drawing)
+    print("{} written".format(img_name))
+
+    img_name2 = f"./dataset/thresholds/{gesture_name}_{img_counter}.jpg"
+    cv2.imwrite(img_name2, thresh)
+    print("{} written".format(img_name2))
+
+    img_name3 = f"./dataset/masks/{gesture_name}_{img_counter}.jpg"
+    cv2.imwrite(img_name3, img)
+    print("{} written".format(img_name3))
+
+    img_counter += 1
+
+
+# functions for picture processing
 def process_frame(frame, bg_model):
     fg_mask = bg_model.apply(frame, learningRate=bg_learning_rate)
     kernel = np.ones((3, 3), np.uint8)
@@ -63,7 +98,7 @@ def process_frame(frame, bg_model):
 
 
 def process_contours(contours, img):
-    center = []
+    center = ()
     drawing = []
     length = len(contours)
     max_area = -1
@@ -90,38 +125,41 @@ def process_contours(contours, img):
     return center, drawing
 
 
-def capture_on_click(event, x, y, flags, params):
-    global save_images
-    drawing, thresh, img = params
-    if event == cv2.EVENT_LBUTTONDOWN and save_images and drawing and thresh and img:
-        capture_frame(drawing, thresh, img)
+# functions for photoshop controll
+def center_cursor():
+    pag.moveTo(screen_size.width/2, screen_size.height/2)
 
 
-def capture_on_keystroke(drawing, thresh, img):
-    global save_images
-    if save_images and drawing and thresh and img:
-        capture_frame(drawing, thresh, img)
+def photoshop_setup():
+    app = ps.Application()
+    doc = app.documents.add(screen_size.width, screen_size.height)
+
+    # fit doc to screen
+    app.runMenuItem(app.charIDToTypeID("FtOn"))
+
+    new_doc = doc.artLayers.add()
+    new_text_layer = new_doc
+    new_text_layer.kind = ps.LayerKind.NormalLayer
+
+    # timeout so everything has time to load
+    # might have to increase depending on how fast PS boots on your system
+    time.sleep(3)
+
+    # fullscreen and switch to brush
+    pag.press('f', presses=2, interval=1)
+    pag.press('b')
+
+    return app, doc
 
 
-def capture_frame(drawing, thresh, img):
-    global gesture_name, img_counter
-    img_name=f"./dataset/contours/{gesture_name}_{img_counter}.jpg"
-    cv2.imwrite(img_name, drawing)
-    print("{} written".format(img_name))
-
-    img_name2 = f"./dataset/thresholds/{gesture_name}_{img_counter}.jpg"
-    cv2.imwrite(img_name2, thresh)
-    print("{} written".format(img_name2))
-
-    img_name3 = f"./dataset/masks/{gesture_name}_{img_counter}.jpg"
-    cv2.imwrite(img_name3, img)
-    print("{} written".format(img_name3))
-
-    img_counter += 1
-
-
+# main app loop
 def main_loop():
     bg_captured = False
+
+    photoshop, document = photoshop_setup()
+    start_cursor = True
+    previous_cursor = (screen_size.width/2, screen_size.height/2)
+    current_cursor = previous_cursor
 
     camera = cv2.VideoCapture(0)
     camera.set(10, 200)
@@ -139,17 +177,30 @@ def main_loop():
         # green rectangle
         cv2.rectangle(frame, (int(cap_region_x_begin * frame.shape[1]), 0),
                       (frame.shape[1], int(cap_region_y_end * frame.shape[0])), (255, 0, 0), 2)
-        cv2.imshow('original', frame)
+        if debug_mode:
+            cv2.imshow('original', frame)
 
         if bg_captured:
-            img, thresh = process_frame(frame, bg_model, bg_learning_rate)
+            img, thresh = process_frame(frame, bg_model)
             # check if this is actually nececary
             # thresh1 = copy.deepcopy(thresh)
             # contours, hierarchy = cv2.findContours(thresh1, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
             contours, hierarchy = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
             center, drawing = process_contours(contours, img)
+            if center:
+                if start_cursor:
+                    current_cursor = center
+                    previous_cursor = center
+                    pag.moveTo(current_cursor[0], current_cursor[1])
+                    start_cursor = False
+                else:
+                    cursor_difference = (previous_cursor[0] - center[0], -previous_cursor[1] + center[1])
+                    previous_cursor = current_cursor
+                    current_cursor = center
+                    pag.moveRel(cursor_difference[0], cursor_difference[1])
+                    # pag.mouseDown()
 
-        cv2.setMouseCallback('original', capture_on_click, params=(drawing, thresh, img))
+        cv2.setMouseCallback('original', capture_on_click, (drawing, thresh, img))
 
         k = cv2.waitKey(10)
 
