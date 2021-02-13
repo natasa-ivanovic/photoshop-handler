@@ -1,21 +1,16 @@
 import os
-import warnings
-import cv2
 import keras
 import matplotlib.pyplot as plt
-import matplotlib.style as style
 import numpy as np
-import pandas as pd
 from PIL import Image
-from keras import models, layers, optimizers
-from keras.applications import VGG16
-from keras.callbacks import EarlyStopping, ModelCheckpoint
-from keras.layers import Dense, Dropout, Flatten
-from keras.models import Model
-from keras.preprocessing import image as image_utils
-from keras.preprocessing.image import ImageDataGenerator
-from keras.utils import to_categorical
-from sklearn.metrics import classification_report, confusion_matrix
+from tensorflow.keras import optimizers
+from tensorflow.keras.applications import InceptionV3
+from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
+from tensorflow.keras.layers import Dense, Dropout, Flatten
+from tensorflow.keras.models import Model
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+from tensorflow.keras.utils import to_categorical
+from tensorflow.keras.applications.inception_v3 import preprocess_input
 from sklearn.model_selection import train_test_split
 
 gestures_map = {
@@ -28,11 +23,13 @@ gestures_map = {
 
 image_size = 224
 
+
 def process_image(path):
     img = Image.open(path)
     img = img.resize((image_size, image_size))
     img = np.array(img)
     return img
+
 
 def process_data(gestures_data, labels_data):
     gestures_data = np.array(gestures_data, dtype = 'float32')
@@ -41,6 +38,7 @@ def process_data(gestures_data, labels_data):
     labels_data = np.array(labels_data)
     labels_data = to_categorical(labels_data)
     return gestures_data, labels_data
+
 
 def load_data(directory):
     gestures_data = []
@@ -54,6 +52,7 @@ def load_data(directory):
     gestures_data, labels_data = process_data(gestures_data, labels_data)
     return gestures_data, labels_data
 
+
 if __name__ == '__main__':
     gestures_data, labels_data = load_data('./dataset/thresholds')
     #print(f'images data shape: {gestures_data.shape}')
@@ -62,16 +61,16 @@ if __name__ == '__main__':
     #plt.show()
 
     gestures_train, gestures_test, labels_train, labels_test = train_test_split(gestures_data, labels_data, test_size= 0.1)
-    file_path = './models/saved_model.hdf5'
-    model_checkpoint = ModelCheckpoint(filepath=file_path, save_best_only=True)
-    early_stopping = EarlyStopping(monitor='val_acc',
+    file_path = './models/inception/saved_model.hdf5'
+    model_checkpoint = ModelCheckpoint(filepath=file_path, save_best_only=True, verbose=1, monitor='val_accuracy')
+    early_stopping = EarlyStopping(monitor='val_accuracy',
                                    min_delta=0,
-                                   patience=10,
+                                   patience=15,
                                    verbose=1,
                                    mode='auto',
                                    restore_best_weights=True)
 
-    vgg_base = VGG16(weights='imagenet', include_top=False, input_shape=(image_size, image_size, 3))
+    vgg_base = InceptionV3(weights='imagenet', include_top=False, input_shape=(image_size, image_size, 3))
     optimizer1 = optimizers.Adam()
 
     base_model = vgg_base
@@ -85,16 +84,15 @@ if __name__ == '__main__':
     predictions = Dense(5, activation='softmax')(x)
 
     model = Model(inputs=base_model.input, outputs=predictions)
-    model.summary
-    for layer in base_model.layers:
-        layer.trainable = False
+    model.summary()
+    # for layer in base_model.layers:
+    #     layer.trainable = False
 
-    callbacks_list = [keras.callbacks.EarlyStopping(monitor='val_acc', patience=3, verbose=1)]
+    callback_list = [model_checkpoint]
 
     model.compile(optimizer='Adam', loss='categorical_crossentropy', metrics=['accuracy'])
 
-    #model.fit(gestures_train, labels_train, epochs=50, batch_size=64, validation_data=(gestures_train, labels_train), verbose=1,
-    #          callbacks=[early_stopping, model_checkpoint])
+    preprocess_input(gestures_train)
 
     datagen = ImageDataGenerator(
         featurewise_center=True,
@@ -106,10 +104,18 @@ if __name__ == '__main__':
         horizontal_flip=False)
 
     datagen.fit(gestures_train)
-    model.fit(datagen.flow(gestures_train, labels_train, batch_size=32, subset='training'),
-                        steps_per_epoch=len(gestures_train)/32,
-                        epochs=10,
-                        validation_data=datagen.flow(gestures_train, labels_train, batch_size=32, subset='validation'),
-                        verbose=1)
+    history = model.fit(datagen.flow(gestures_train, labels_train, batch_size=32, subset='training'),
+              epochs=100,
+              validation_data=datagen.flow(gestures_train, labels_train, batch_size=32, subset='validation'),
+              verbose=1,
+              callbacks=callback_list)
+
+    plt.plot(history.history['accuracy'])
+    plt.plot(history.history['val_accuracy'])
+    plt.title('model accuracy - inception')
+    plt.ylabel('accuracy')
+    plt.xlabel('epoch')
+    plt.legend(['train', 'test'], loc='upper left')
+    plt.show()
 
 
