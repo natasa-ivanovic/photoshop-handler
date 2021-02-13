@@ -6,7 +6,8 @@ import pyautogui as pag
 
 # global params #
 # image saving settings
-img_counter = 500
+img_counter = 251
+final_img_count = 500
 save_images = True
 gesture_name = 'nav'
 
@@ -36,33 +37,54 @@ screen_size = pag.size()
 # debug mode - show all windows
 debug_mode = True
 
+
 # functions for picture capture
 def capture_on_click(event, x, y, flags, params):
-    drawing, thresh, img = params
-    if event == cv2.EVENT_LBUTTONDOWN and save_images and drawing and thresh and img:
-        capture_frame(drawing, thresh, img)
+    drawing, thresh, img, bounding_box = params
+    if event == cv2.EVENT_LBUTTONDOWN and save_images:
+        capture_frame(drawing, thresh, img, bounding_box)
 
 
-def capture_on_keystroke(drawing, thresh, img):
-    if save_images and drawing and thresh and img:
-        capture_frame(drawing, thresh, img)
+def capture_on_keystroke(drawing, thresh, img, bounding_box):
+    if save_images:
+        capture_frame(drawing, thresh, img, bounding_box)
 
 
-def capture_frame(drawing, thresh, img):
+def capture_frame(drawing, thresh, img, bounding_box):
     global img_counter
-    img_name=f"./dataset/contours/{gesture_name}_{img_counter}.jpg"
-    cv2.imwrite(img_name, drawing)
+    if img_counter > final_img_count:
+        print ("GOTOVO")
+        return
+    if not bounding_box:
+        return
+    x, y, w, h = square_bounding_box(bounding_box)
+    crop_drawing = drawing[y: y+h, x:x+w]
+    crop_thresh = thresh[y: y+h, x:x+w]
+    crop_img = img[y: y+h, x:x+w]
+    img_name = f"./dataset/contours/{gesture_name}_{img_counter}.jpg"
+    cv2.imwrite(img_name, crop_drawing)
     print("{} written".format(img_name))
 
     img_name2 = f"./dataset/thresholds/{gesture_name}_{img_counter}.jpg"
-    cv2.imwrite(img_name2, thresh)
+    cv2.imwrite(img_name2, crop_thresh)
     print("{} written".format(img_name2))
 
     img_name3 = f"./dataset/masks/{gesture_name}_{img_counter}.jpg"
-    cv2.imwrite(img_name3, img)
+    cv2.imwrite(img_name3, crop_img)
     print("{} written".format(img_name3))
 
     img_counter += 1
+
+
+def square_bounding_box(rectangle):
+    x, y, w, h = rectangle
+    if w > h:
+        y -= int((w - h) / 2)
+        h += int(w - h)
+    else:
+        x -= int((h - w) / 2)
+        w += int(h - w)
+    return x, y, w, h
 
 
 # functions for picture processing
@@ -100,6 +122,7 @@ def process_frame(frame, bg_model):
 def process_contours(contours, img):
     center = ()
     drawing = []
+    bounding_box = ()
     length = len(contours)
     max_area = -1
     if length > 0:
@@ -112,8 +135,9 @@ def process_contours(contours, img):
                 ci = i
         res = contours[ci]
         if cv2.contourArea(res) < area_limit:
-            return center, drawing
+            return center, drawing, bounding_box
         # print(cv2.contourArea(res))
+        bounding_box = cv2.boundingRect(res)
         hull = cv2.convexHull(res)
         drawing = np.zeros(img.shape, np.uint8)
         cv2.drawContours(drawing, [res], 0, (0, 255, 0), 2)
@@ -124,7 +148,7 @@ def process_contours(contours, img):
         cv2.circle(drawing, center, 5, (255, 0, 0), 2)
         if debug_mode:
             cv2.imshow('contours', drawing)
-    return center, drawing
+    return center, drawing, bounding_box
 
 
 # functions for photoshop controll
@@ -163,6 +187,9 @@ def main_loop():
     previous_cursor = (screen_size.width/2, screen_size.height/2)
     current_cursor = previous_cursor
 
+    # for capturing images
+    bounding_box = []
+
     camera = cv2.VideoCapture(0)
     camera.set(10, 200)
 
@@ -174,7 +201,7 @@ def main_loop():
         frame = cv2.bilateralFilter(frame, 5, 50, 100)
 
         # flip the frame horizontally
-        frame = cv2.flip(frame, 1)
+        # frame = cv2.flip(frame, 1)
 
         # green rectangle
         cv2.rectangle(frame, (int(cap_region_x_begin * frame.shape[1]), 0),
@@ -188,7 +215,7 @@ def main_loop():
             # thresh1 = copy.deepcopy(thresh)
             # contours, hierarchy = cv2.findContours(thresh1, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
             contours, hierarchy = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-            center, drawing = process_contours(contours, img)
+            center, drawing, bounding_box = process_contours(contours, img)
             if center:
                 if start_cursor:
                     current_cursor = center
@@ -202,7 +229,7 @@ def main_loop():
                     pag.moveRel(cursor_difference[0], cursor_difference[1])
                     # pag.mouseDown()
 
-        cv2.setMouseCallback('original', capture_on_click, (drawing, thresh, img))
+        cv2.setMouseCallback('original', capture_on_click, (drawing, thresh, img, bounding_box))
 
         k = cv2.waitKey(10)
 
@@ -225,7 +252,7 @@ def main_loop():
 
         # capture picture on space if save_image
         elif k == 32:
-            capture_on_keystroke(drawing, thresh, img)
+            capture_on_keystroke(drawing, thresh, img, bounding_box)
 
 
 if __name__ == '__main__':
