@@ -17,7 +17,8 @@ If you would like to train the network again (or use your own dataset), create a
 1. Set debug_mode to True and save_images to True  
 2. Set gesture_name to one of 6 supported gestures (brush, nav, zoom, delete, move or pan)
 3. Set your image counter start and limit (with params img_counter and final_img_count)  
-4. Launch the app and use spacebar or click on the window titled 'original' to capture an image! 
+4. Launch the app and use spacebar or click on the window titled 'original' to capture an image!  
+5. Ideally capture the same amount of pictures for every class. For training, refer to the previous setion.
 
 ### Team members:  
 Nataša Ivanović - SW47/2017  
