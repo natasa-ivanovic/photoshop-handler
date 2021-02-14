@@ -172,6 +172,7 @@ def process_contours(contours, img):
 def center_cursor():
     mouse.move(screen_size.width/2, screen_size.height/2, absolute=True)
 
+
 def photoshop_setup():
     app = ps.Application()
     doc = app.documents.add(screen_size.width, screen_size.height)
@@ -302,6 +303,12 @@ def main_loop():
                             pag.press('v')
                             first_time_entering_state = False
                             mouse.press()
+                    elif state == 'pan':
+                        if first_time_entering_state:
+                            mouse.release()
+                            pag.press('h')
+                            first_time_entering_state = False
+                            mouse.press()
                 if start_cursor:
                     current_cursor = center
                     previous_cursor = center
@@ -312,8 +319,6 @@ def main_loop():
                     previous_cursor = current_cursor
                     current_cursor = center
                     mouse.move(cursor_difference[0], cursor_difference[1], absolute=False)
-                    # pag.moveRel(cursor_difference[0], cursor_difference[1])
-                    # pag.mouseDown()
 
         cv2.setMouseCallback('original', capture_on_click, (drawing, thresh, img, bounding_box))
 
