@@ -1,11 +1,12 @@
 # Photoshop Handler - Soft Computing project
 ## [You can find a demo here!](https://www.youtube.com/watch?v=fJysmefLiq8)
-## Running the project:  
+## Running the project  
 Install all the requirements listed in the requirements.txt (preferably use a venv).  
 You must have Photoshop installed, preferably a version equal to or later than Photoshop CC2015.  
 Before starting the project, configure Photoshop brush and delete tool to be of same size (30 works okay with 1920x1080 resolution) and close the program before launching.  
 Check if the project contains 'best_model.hdf5' file in root (it should, if it doesn't you can get it from [this link](https://www.dropbox.com/s/qs5xzpuk6qv2x7m/best_model.hdf5?dl=0)).  
 Launch main_module.py and make sure that save_images is set to False.  
+Make sure to wear sleeves that match your background as closely as possible to get best results!
 ## Options  
 If you would like to see the webcam results, you can set debug_mode to True.  
 If you would like to flip the view of the camera, you can set flip_coefficient to -1.  
