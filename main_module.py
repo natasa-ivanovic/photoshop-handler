@@ -248,12 +248,11 @@ def main_loop():
         cv2.rectangle(frame, (int(cap_region_x_begin * frame.shape[1]), 0),
                       (frame.shape[1], int(cap_region_y_end * frame.shape[0])), (255, 0, 0), 2)
         if debug_mode:
-            # cv2.putText(frame, f'State: {state}, score: {score}%', (50, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255))
+            cv2.putText(frame, f'State: {state}, score: {score}%', (50, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255))
             cv2.imshow('original', frame)
 
         if bg_captured:
             img, thresh = process_frame(frame, bg_model)
-            # contours, hierarchy = cv2.findContours(thresh1, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
             contours, hierarchy = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
             center, drawing, bounding_box = process_contours(contours, img)
             if center and drawing.size != 0 and not save_images:
@@ -324,7 +323,7 @@ def main_loop():
 
         k = cv2.waitKey(10)
 
-        # capturuje odmah bg ako se ne prikazuju windowi
+        # capture background if not in debug mode so you can use the app
         if not bg_captured and not debug_mode:
             bg_model = cv2.createBackgroundSubtractorMOG2(0, bg_threshold, False)
             bg_captured = True
