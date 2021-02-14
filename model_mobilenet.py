@@ -56,7 +56,7 @@ def load_data(directory):
 
 
 if __name__ == '__main__':
-    gestures_data, labels_data = load_data('./dataset/thresholds')
+    gestures_data, labels_data = load_data('./dataset')
 
     gestures_train, gestures_test, labels_train, labels_test = train_test_split(gestures_data, labels_data, test_size= 0.1)
     file_path = './models/mobilenet/saved_model.hdf5'

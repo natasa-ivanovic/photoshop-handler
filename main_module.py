@@ -52,7 +52,7 @@ screen_size = pag.size()
 flip_coefficient = 1
 
 # debug mode - show all windows
-debug_mode = False
+debug_mode = True
 
 
 # functions for picture capture
