@@ -1,6 +1,5 @@
 import os
 import random
-import keras
 import matplotlib.pyplot as plt
 import numpy as np
 from PIL import Image
@@ -9,7 +8,6 @@ from tensorflow.keras.applications import NASNetMobile
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
 from tensorflow.keras.layers import Dense, Dropout, Flatten
 from tensorflow.keras.models import Model
-from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.utils import to_categorical
 from tensorflow.keras.applications.nasnet import preprocess_input
 from sklearn.model_selection import train_test_split
@@ -35,9 +33,7 @@ def process_image(path):
 def process_data(gestures_data, labels_data):
     gestures_data = np.array(gestures_data, dtype = 'float32')
     gestures_data = np.stack((gestures_data,)*3, axis=-1)
-    gestures_data /= 255
     labels_data = np.array(labels_data)
-    labels_data = to_categorical(labels_data)
     return gestures_data, labels_data
 
 
@@ -61,30 +57,30 @@ def load_data(directory):
 
 if __name__ == '__main__':
     gestures_data, labels_data = load_data('./dataset/thresholds')
-    #print(f'images data shape: {gestures_data.shape}')
-    #print(f'labels data shape: {labels_data.shape}')
-    #plt.imshow(gestures_data[0])
-    #plt.show()
+    # print(f'images data shape: {gestures_data.shape}')
+    # print(f'labels data shape: {labels_data.shape}')
+    # plt.imshow(gestures_data[0])
+    # plt.show()
 
     gestures_train, gestures_test, labels_train, labels_test = train_test_split(gestures_data, labels_data, test_size= 0.1)
     file_path = './models/nasnet/saved_model.hdf5'
     model_checkpoint = ModelCheckpoint(filepath=file_path, save_best_only=True, verbose=1, monitor='val_accuracy')
     early_stopping = EarlyStopping(monitor='val_accuracy',
                                    min_delta=0,
-                                   patience=15,
+                                   patience=10,
                                    verbose=1,
                                    mode='auto',
                                    restore_best_weights=True)
 
-    vgg_base = NASNetMobile(weights='imagenet', include_top=False, input_shape=(image_size, image_size, 3))
+    vgg_base = NASNetMobile(include_top=False, input_shape=(image_size, image_size, 3))
     optimizer1 = optimizers.Adam()
 
     base_model = vgg_base
     x = base_model.output
     x = Flatten()(x)
-    x = Dense(128, activation='relu', name='fc1')(x)
-    x = Dropout(0.5)(x)
-    x = Dense(64, activation='relu', name='fc2')(x)
+    # x = Dense(128, activation='relu', name='fc1')(x)
+    # x = Dropout(0.5)(x)
+    # x = Dense(64, activation='relu', name='fc2')(x)
     predictions = Dense(5, activation='softmax')(x)
 
     model = Model(inputs=base_model.input, outputs=predictions)
@@ -98,21 +94,38 @@ if __name__ == '__main__':
 
     preprocess_input(gestures_train)
 
-    datagen = ImageDataGenerator(
-        validation_split=0.2)
+    number_training_el = int(0.9*len(gestures_train))
+    gestures_validation = gestures_train[number_training_el:]
+    gestures_train = gestures_train[:number_training_el]
+    labels_validation = labels_train[number_training_el:]
+    labels_train = labels_train[:number_training_el]
 
-    datagen.fit(gestures_train)
-    history = model.fit(datagen.flow(gestures_train, labels_train, batch_size=32, subset='training'),
+    history = model.fit(gestures_train, to_categorical(labels_train), batch_size= 64, steps_per_epoch=len(gestures_train)/64,
               epochs=100,
-              validation_data=datagen.flow(gestures_train, labels_train, batch_size=32, subset='validation'),
+              validation_data=(gestures_validation, to_categorical(labels_validation)),
               verbose=1,
               callbacks=callback_list)
 
+    total = labels_test.size
+
+    predictions = model.predict(gestures_test)
+    predictions_max = np.array(np.argmax(predictions, axis=1))
+
+    print(predictions)
+    print(predictions_max)
+
+    check = predictions_max == labels_test
+    unique, counts = np.unique(check, return_counts=True)
+    result_dict = dict(zip(unique, counts))
+    correct = result_dict[True]
+
+    print("Result: ", correct, "/", total, " correct")
+    print("Accuracy: ", correct/total*100, "%")
+
     plt.plot(history.history['accuracy'])
     plt.plot(history.history['val_accuracy'])
-    plt.title('model accuracy - NASNET')
+    plt.title('model accuracy - NASNet')
     plt.ylabel('accuracy')
     plt.xlabel('epoch')
     plt.legend(['train', 'test'], loc='upper left')
     plt.show()
-

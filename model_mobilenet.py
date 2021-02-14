@@ -17,7 +17,8 @@ gestures_map = {
     'zoom': 1,
     'nav': 2,
     'delete': 3,
-    'move': 4
+    'move': 4,
+    'pan': 5
 }
 
 image_size = 224
@@ -73,7 +74,7 @@ if __name__ == '__main__':
     base_model = vgg_base
     x = base_model.output
     x = Flatten()(x)
-    predictions = Dense(5, activation='softmax')(x)
+    predictions = Dense(6, activation='softmax')(x)
 
     model = Model(inputs=base_model.input, outputs=predictions)
     model.summary()

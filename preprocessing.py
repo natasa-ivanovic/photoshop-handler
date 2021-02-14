@@ -3,13 +3,26 @@ import numpy as np
 import time
 import photoshop.api as ps
 import pyautogui as pag
+import mouse
+from tensorflow.keras.models import load_model
+from tensorflow.keras.applications.mobilenet_v3 import preprocess_input
+
+
+gestures_names = {
+    0: 'brush',
+    1: 'zoom',
+    2: 'nav',
+    3: 'delete',
+    4: 'move',
+    5: 'pan'
+}
 
 # global params #
 # image saving settings
 img_counter = 251
 final_img_count = 500
-save_images = True
-gesture_name = 'nav'
+save_images = False
+gesture_name = 'pan'
 
 # size params for window - 0, 1 would be entire screen
 cap_region_x_begin = 0.5
@@ -28,14 +41,18 @@ bg_threshold = 70
 # bg_threshold = 16
 bg_learning_rate = 0
 
-# sets minimum size of contour to be considered valid
-area_limit = 2000
+# sets minimum and maximum size of contour to be considered valid
+lower_area_limit = 2000
+upper_area_limit = 15000
 
 # screen size
 screen_size = pag.size()
 
+# flip coefficient = 1 or -1, determins whether webcam is flipped or not ( 1 is normal, -1 is flipped)
+flip_coefficient = 1
+
 # debug mode - show all windows
-debug_mode = True
+debug_mode = False
 
 
 # functions for picture capture
@@ -134,7 +151,7 @@ def process_contours(contours, img):
                 max_area = area
                 ci = i
         res = contours[ci]
-        if cv2.contourArea(res) < area_limit:
+        if cv2.contourArea(res) < lower_area_limit and cv2.contourArea(res) > upper_area_limit:
             return center, drawing, bounding_box
         # print(cv2.contourArea(res))
         bounding_box = cv2.boundingRect(res)
@@ -153,8 +170,7 @@ def process_contours(contours, img):
 
 # functions for photoshop controll
 def center_cursor():
-    pag.moveTo(screen_size.width/2, screen_size.height/2)
-
+    mouse.move(screen_size.width/2, screen_size.height/2, absolute=True)
 
 def photoshop_setup():
     app = ps.Application()
@@ -178,60 +194,135 @@ def photoshop_setup():
     return app, doc
 
 
+def classify_image(predictions):
+    result = gestures_names[np.argmax(predictions)]
+    print(f'Result: {result}')
+    print(max(predictions[0]))
+    score = float("%0.2f" % (max(predictions[0]) * 100))
+    print(result)
+    return result, score
+
+
 # main app loop
 def main_loop():
     bg_captured = False
 
-    #photoshop, document = photoshop_setup()
-    start_cursor = True
-    previous_cursor = (screen_size.width/2, screen_size.height/2)
-    current_cursor = previous_cursor
+    # photoshop and mouse movement related variables
+    if not save_images:
+        photoshop, document = photoshop_setup()
+        start_cursor = True
+        previous_cursor = (screen_size.width/2, screen_size.height/2)
+        current_cursor = previous_cursor
+
+        model = load_model('best_model.hdf5', compile=False)
 
     # for capturing images
     bounding_box = []
 
+    # frame counter for state switching
+    frame_counter = 10
+    frame_threshold = 10
+
+    # initializing state
+    old_state = 'nav'
+    state = 'nav'
+    first_time_entering_state = False
+    score = 100
+
     camera = cv2.VideoCapture(0)
-    camera.set(10, 200)
+    camera.set(cv2.CAP_PROP_FPS,  30)
 
     while camera.isOpened():
         drawing, thresh, img = [], [], []
 
-        ret, frame = camera.read()
+        _, frame = camera.read()
         # smoothing filter
         frame = cv2.bilateralFilter(frame, 5, 50, 100)
 
         # flip the frame horizontally
-        # frame = cv2.flip(frame, 1)
+        if flip_coefficient == -1:
+            frame = cv2.flip(frame, 1)
 
         # green rectangle
         cv2.rectangle(frame, (int(cap_region_x_begin * frame.shape[1]), 0),
                       (frame.shape[1], int(cap_region_y_end * frame.shape[0])), (255, 0, 0), 2)
         if debug_mode:
+            # cv2.putText(frame, f'State: {state}, score: {score}%', (50, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255))
             cv2.imshow('original', frame)
 
         if bg_captured:
             img, thresh = process_frame(frame, bg_model)
-            # check if this is actually nececary
-            # thresh1 = copy.deepcopy(thresh)
             # contours, hierarchy = cv2.findContours(thresh1, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
             contours, hierarchy = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
             center, drawing, bounding_box = process_contours(contours, img)
-            if center:
+            if center and drawing.size != 0 and not save_images:
+                if frame_counter < frame_threshold:
+                    frame_counter += 1
+                else:
+                    frame_counter = 1
+                    # get prediction from model
+                    x, y, w, h = square_bounding_box(bounding_box)
+                    try:
+                        crop_thresh = thresh[y: y+h, x:x+w]
+                        crop_thresh = np.stack((crop_thresh,)*3, axis=-1)
+                        crop_thresh = cv2.resize(crop_thresh, (224, 224))
+                        crop_thresh = crop_thresh.reshape(1, 224, 224, 3)
+                        prediction = model.predict(preprocess_input(crop_thresh))
+                        old_state = state
+                        state, score = classify_image(prediction)
+                        first_time_entering_state = True if state != old_state else False
+                    except Exception:
+                        print('Thresholding and prediction failed, remaining in current state')
+
+                    if state == 'brush':
+                        if first_time_entering_state:
+                            mouse.release()
+                            pag.press('b')
+                            first_time_entering_state = False
+                            mouse.press()
+                    elif state == 'zoom':
+                        if first_time_entering_state:
+                            mouse.release()
+                            pag.press('z')
+                            first_time_entering_state = False
+                            mouse.press()
+                    elif state == 'nav':
+                        if first_time_entering_state:
+                            mouse.release()
+                            first_time_entering_state = False
+                    elif state == 'delete':
+                        if first_time_entering_state:
+                            mouse.release()
+                            pag.press('e')
+                            first_time_entering_state = False
+                            mouse.press()
+                    elif state == 'move':
+                        if first_time_entering_state:
+                            mouse.release()
+                            pag.press('v')
+                            first_time_entering_state = False
+                            mouse.press()
                 if start_cursor:
                     current_cursor = center
                     previous_cursor = center
-                    pag.moveTo(current_cursor[0], current_cursor[1])
+                    center_cursor()
                     start_cursor = False
                 else:
-                    cursor_difference = (previous_cursor[0] - center[0], -previous_cursor[1] + center[1])
+                    cursor_difference = (flip_coefficient*(previous_cursor[0] - center[0]), -previous_cursor[1] + center[1])
                     previous_cursor = current_cursor
                     current_cursor = center
-                    pag.moveRel(cursor_difference[0], cursor_difference[1])
+                    mouse.move(cursor_difference[0], cursor_difference[1], absolute=False)
+                    # pag.moveRel(cursor_difference[0], cursor_difference[1])
                     # pag.mouseDown()
 
         cv2.setMouseCallback('original', capture_on_click, (drawing, thresh, img, bounding_box))
 
         k = cv2.waitKey(10)
+
+        # capturuje odmah bg ako se ne prikazuju windowi
+        if not bg_captured and not debug_mode:
+            bg_model = cv2.createBackgroundSubtractorMOG2(0, bg_threshold, False)
+            bg_captured = True
 
         # exit on escape
         if k == 27:
