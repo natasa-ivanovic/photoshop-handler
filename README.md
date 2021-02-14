@@ -12,6 +12,7 @@ If you would like to flip the view of the camera, you can set flip_coefficient t
 If using the debug mode, you must press B to capture the background when you're ready to do so. If not in debug mode the background is captured on app launch.  
 ## Training the neural network
 If you would like to train the network again (or use your own dataset), create and populate a folder 'dataset' with [our dataset](https://www.dropbox.com/s/f9e4pl2qllit9qo/dataset.zip?dl=0), or create your own dataset!  
+To launch training, open up model_mobilenet.py, optionally tweak the params for early stopping and epoch number, and hit run!
 
 ## Creating your own dataset  
 1. Set debug_mode to True and save_images to True  
