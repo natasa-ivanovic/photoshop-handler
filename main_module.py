@@ -25,10 +25,10 @@ save_images = False
 gesture_name = 'pan'
 
 # size params for window - 0, 1 would be entire screen
-cap_region_x_begin = 0.5
-cap_region_y_end = 0.8
-#cap_region_x_begin = 0
-#cap_region_y_end = 1
+#cap_region_x_begin = 0.5
+#cap_region_y_end = 0.8
+cap_region_x_begin = 0
+cap_region_y_end = 1
 
 # threshold and blur value for image processing
 threshold = 60
@@ -186,7 +186,7 @@ def photoshop_setup():
 
     # timeout so everything has time to load
     # might have to increase depending on how fast PS boots on your system
-    time.sleep(3)
+    time.sleep(10)
 
     # fullscreen and switch to brush
     pag.press('f', presses=2, interval=1)
